@@ -159,37 +159,55 @@ NFA& NFA::redundant_removal() {
 
 DFA NFA::determinize() {
     DFA result;
-    map<pair<State, Symbol>, set<State>> new_states_decoder;
+    map<set<State>, State> state_decoder;
 
     // copy data that won't be changed
     result.m_States.emplace(m_InitialState);
     result.m_InitialState = m_InitialState;
 
-    for (auto state : result.m_States) {
-        for (const auto symbol : result.m_Alphabet) {
-            const auto decoder_itr = new_states_decoder.find({state, symbol});
+    queue<set<State>> queue;
+    queue.push(result.m_States);
 
-            if (decoder_itr != new_states_decoder.end()) {
-                // Handle newly added elements if needed
-                // ...
+    // Process each set of NFA states in the queue
+    while (!queue.empty()) {
+        set < State > currentSet = queue.front();
+        queue.pop();
+
+        // Process each symbol in the alphabet
+        for (const auto &symbol: m_Alphabet) {
+            set < State > nextSet;
+
+            // Compute the set of NFA states reached by symbol transition
+            for (auto state: currentSet) {
+                const auto transition = m_Transitions.find({state, symbol});
+                if (transition != m_Transitions.end()) {
+                    nextSet.insert(transition->second.begin(), transition->second.end());
+                }
             }
 
-            const auto transition = m_Transitions.find({state, symbol});
-            if (transition == m_Transitions.end()) continue;
+            // Check if the set is not empty
+            if (!nextSet.empty()) {
+                // Check if the set is a new DFA state
+                if (state_decoder.find(nextSet) == state_decoder.end()) {
+                    State newState = result.m_States.size();
+                    state_decoder[nextSet] = newState;
+                    result.m_States.insert(newState);
 
-            const auto& [key, symbol_states] = *transition;
+                    // Check if the set contains a final state
+                    if (isFinal(nextSet)) {
+                        result.m_FinalStates.insert(newState);
+                    }
 
-            State new_state;
-            if (symbol_states.empty()) continue;
-            else if (symbol_states.size() == 1) new_state = *symbol_states.begin();
-            else {
-                new_state = next();
-                new_states_decoder[{new_state, symbol}].insert(symbol_states.begin(), symbol_states.end());
+                    queue.push(nextSet);
+                }
+
+                // Add the transition from the current DFA state to the next DFA state
+                result.m_Transitions[{state_decoder[currentSet], symbol}] = state_decoder[nextSet];
             }
-
-            result.m_States.insert(new_state);
-            result.m_Transitions[key] = new_state;
         }
+    }
+    return result;
+}
 
 bool NFA::empty_intersection(const set<State>& x, const set<State>& y) {
     for (const auto& elem : x) {
@@ -998,6 +1016,8 @@ DFA out13 = {
 
 int main()
 {
+    assert(determinize(in13) == out13);
+
     assert(determinize(in1) == out1);
     assert(determinize(in2) == out2);
     assert(determinize(in3) == out3);
