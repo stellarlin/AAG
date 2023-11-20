@@ -12,6 +12,7 @@
 #include <queue>
 #include <set>
 #include <stack>
+#include <utility>
 #include <vector>
 
 #include <cassert>
@@ -21,6 +22,7 @@ using State = unsigned int;
 using Symbol = char;
 
 struct MISNFA {
+
     std::set<State> m_States;
     std::set<Symbol> m_Alphabet;
     std::map<std::pair<State, Symbol>, std::set<State>> m_Transitions;
@@ -44,60 +46,23 @@ struct DFA {
 
 #endif
 
-struct NFA {
+struct NFA  {
+    explicit NFA(MISNFA source) : M(std::move(source)) {}
+   // State next() const { return automaton.m_States.empty() ? 0 : *(m_States.rbegin()) + 1; }
 
-    State next() const { return m_States.empty() ? 0 : *(m_States.rbegin()) + 1; }
-
-    set<State> find_useful(const set<State>& previous) const;
-    NFA& redundant_removal();
-
-    NFA& unreachable_removal();
-    NFA& one_initial_state(const MISNFA& source);
+    set<State> find_useful(const set<State> &previous) const;
+    NFA &redundant_removal();
+    NFA &unreachable_removal();
     DFA determinize();
 
-    static bool has_empty_intersection(const std::set<State>& x, const std::set<State>& y);
+    static bool has_empty_intersection(const std::set<State> &x, const std::set<State> &y);
+    bool isFinal(const std::set<State> &States) const;
+    void erase_transitions(const std::set<State> &source_states);
 
-    bool isFinal(const std::set<State>& States) const;
-    bool isFinal(State state) const;
+    MISNFA M;
 
-    using transition_iterator = std::map<std::pair<State, Symbol>, std::set<State>>::iterator;
-    transition_iterator insert_transition(const std::pair<State, Symbol>& key, const std::set<State>& value);
-    void copy_transitions(State& new_state, const std::set<State>& source_states);
-    void erase_transitions(const std::set<State>& source_states);
-
-    std::set<State> m_States;
-    std::set<Symbol> m_Alphabet;
-    std::map<std::pair<State, Symbol>, std::set<State>> m_Transitions;
-    State m_InitialState;
-    std::set<State> m_FinalStates;
 };
 
-NFA& NFA::one_initial_state(const MISNFA& source) {
-    // copy data from MISNFA
-    m_States = source.m_States;
-    m_Alphabet = source.m_Alphabet;
-    m_Transitions = source.m_Transitions;
-    m_FinalStates = source.m_FinalStates;
-
-    // if automata has 1 initial state, there is no need to create a new one
-    if (source.m_InitialStates.size() == 1) {
-        m_InitialState = *source.m_InitialStates.begin();
-        return *this;
-    }
-
-    // create a new initial_state
-    m_InitialState = next();
-    m_States.insert(m_InitialState);
-
-    // check if there was a final state in m_InitialStates.
-    // if it's true, add a new initial state into the set of final states
-    if (isFinal(source.m_InitialStates)) m_FinalStates.insert(m_InitialState);
-
-    // copy transitions of initial states into the new initial state
-    copy_transitions(m_InitialState, source.m_InitialStates);
-
-    return *this;
-}
 
 NFA& NFA::unreachable_removal() {
 
@@ -105,8 +70,8 @@ NFA& NFA::unreachable_removal() {
     queue<State> queue;
 
     // Start BFS from the initial state
-    queue.push(m_InitialState);
-    accessible_states.insert(m_InitialState);
+    for (const auto & initial_state: M.m_InitialStates) queue.push(initial_state);
+    accessible_states.insert(M.m_InitialStates.begin(), M.m_InitialStates.end());
 
     // Perform BFS to find all reachable states
     while (!queue.empty()) {
@@ -114,9 +79,9 @@ NFA& NFA::unreachable_removal() {
         queue.pop();
 
         // Iterate over transitions for the current state
-        for (const auto& symbol : m_Alphabet) {
-            const auto transition = m_Transitions.find({currentState, symbol});
-            if (transition == m_Transitions.end()) continue;
+        for (const auto& symbol : M.m_Alphabet) {
+            const auto transition = M.m_Transitions.find({currentState, symbol});
+            if (transition == M.m_Transitions.end()) continue;
 
                 const auto& nextStates = transition->second;
 
@@ -130,28 +95,29 @@ NFA& NFA::unreachable_removal() {
         }
     }
 
-    if (m_States.size() == accessible_states.size()) return *this;
+    if (M.m_States.size() == accessible_states.size()) return *this;
 
+    M.m_States = accessible_states;
 
     // erase unreachable final states
-    auto it = m_FinalStates.begin();
-    while (it != m_FinalStates.end()) {
+    auto it = M.m_FinalStates.begin();
+    while (it != M.m_FinalStates.end()) {
         auto finalState = *it;
         accessible_states.find(finalState) == accessible_states.end()
-        ? it = m_FinalStates.erase(it) :  ++it;
+        ? it = M.m_FinalStates.erase(it) :  ++it;
     }
 
     // erase transitions with unreachable states
     erase_transitions(accessible_states);
 
-    m_States = accessible_states;
+
     return *this;
 }
 
 set<State> NFA::find_useful(const set<State>& previous) const {
     set<State> current = previous;
 
-    for (const auto& [key, value] : m_Transitions) {
+    for (const auto& [key, value] : M.m_Transitions) {
         const auto& [state, symbol] = key;
         if (previous.find(state) != previous.end()) continue;
 
@@ -166,11 +132,12 @@ set<State> NFA::find_useful(const set<State>& previous) const {
 NFA& NFA::redundant_removal() {
 
     // search for useful states
-    auto useful_states = find_useful(m_FinalStates);
+    auto useful_states = find_useful(M.m_FinalStates);
 
     // end if no redundant state
-    if (useful_states.size() == m_States.size()) return *this;
+    if (useful_states.size() == M.m_States.size()) return *this;
 
+    M.m_States = useful_states;
     // erase transitions with redundant states
      erase_transitions(useful_states);
 
@@ -183,15 +150,15 @@ DFA NFA::determinize() {
     queue<set<State>> queue;
 
     //copy an Alphabet
-    result.m_Alphabet = m_Alphabet;
+    result.m_Alphabet = M.m_Alphabet;
 
     // Create initial state of DFA, add initial state into queue
-    result.m_InitialState = state_decoder[{m_InitialState}] = 0;
+    result.m_InitialState = state_decoder[M.m_InitialStates] = 0;
     result.m_States.insert(0);
-    if (isFinal(m_InitialState)) {
+    if (isFinal(M.m_InitialStates)) {
         result.m_FinalStates.insert(0);
     }
-    queue.push({m_InitialState});
+    queue.push(M.m_InitialStates);
 
     // Process each set of NFA states in the queue
     while (!queue.empty()) {
@@ -199,13 +166,13 @@ DFA NFA::determinize() {
         queue.pop();
 
         // Process each symbol in the alphabet
-        for (const auto &symbol: m_Alphabet) {
+        for (const auto &symbol: M.m_Alphabet) {
             set <State> nextSet;
 
             // Compute the set of NFA states reached by symbol transition
             for (auto state: currentSet) {
-                const auto transition = m_Transitions.find({state, symbol});
-                if (transition != m_Transitions.end()) {
+                const auto transition = M.m_Transitions.find({state, symbol});
+                if (transition != M.m_Transitions.end()) {
                     nextSet.insert(transition->second.begin(), transition->second.end());
                 }
             }
@@ -242,38 +209,17 @@ bool NFA::has_empty_intersection(const set<State>& x, const set<State>& y) {
 }
 
 bool NFA::isFinal(const set<State>& States) const {
-    return !has_empty_intersection(m_FinalStates, States);
+    return !has_empty_intersection(M.m_FinalStates, States);
 }
 
-bool NFA::isFinal(State state) const {
-    return m_FinalStates.find(state) != m_FinalStates.end();
-}
-
-NFA::transition_iterator NFA::insert_transition(const pair<State, Symbol>& key, const set<State>& value) {
-    const auto& [transition, success] = m_Transitions.insert({ key, {} });
-    transition->second.insert(value.begin(), value.end());
-    return transition;
-}
-
-void NFA::copy_transitions(State& new_state, const set<State>& source_states) {
-    for (const auto& state : source_states) {
-        for (const auto& symbol : m_Alphabet) {
-            const auto transition = m_Transitions.find({ state, symbol });
-            if (transition == m_Transitions.end()) continue;
-
-            const auto& [key, symbol_states] = *transition;
-            insert_transition({ new_state, symbol }, symbol_states);
-        }
-    }
-}
 
 void NFA::erase_transitions(const std::set<State>& source_states) {
-    for (auto it = m_Transitions.begin(); it != m_Transitions.end();) {
+    for (auto it = M.m_Transitions.begin(); it != M.m_Transitions.end();) {
         auto& [key, value] = *it;
         auto& [state, symbol] = key;
 
         if (source_states.find(state) == source_states.end()) {
-            it = m_Transitions.erase(it);
+            it = M.m_Transitions.erase(it);
             continue;
         }
 
@@ -283,14 +229,13 @@ void NFA::erase_transitions(const std::set<State>& source_states) {
                 else
                     ++inside_state;
             }
-        it = value.empty() ? m_Transitions.erase(it) : ++it;
+        it = value.empty() ? M.m_Transitions.erase(it) : ++it;
     }
 }
 
 DFA determinize(const MISNFA& source) {
-    NFA nfa;
-    nfa.one_initial_state(source).unreachable_removal().redundant_removal();
-    return nfa.determinize();
+    NFA nfa(source);
+    return nfa.unreachable_removal().redundant_removal().determinize();
 }
 
 #ifndef __PROGTEST__
@@ -1080,4 +1025,5 @@ int main()
     /**/
     return 0;
 }
+
 #endif
