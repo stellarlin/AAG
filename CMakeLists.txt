@@ -6,4 +6,4 @@ add_compile_options(-Wall -pedantic -Wno-long-long -Werror)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR})
 
 
-add_executable(determinisation determinisation.cpp)
+add_executable(determination prog01/determination.cpp)
