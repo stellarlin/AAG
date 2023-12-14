@@ -25,3 +25,137 @@ It is guaranteed that the input will be a valid grammar with rules according to 
 
 
 In the hints, the input format is a sequence of symbols separated by spaces, i.e., "a b" is represented as Word{'a', 'b'}.
+
+### Input Constraints
+#### Valid Grammar
+The input grammar must adhere to certain constraints:
+
+* Non-terminals and terminals sets must have no intersection.
+* Rules must contain symbols only from the non-terminals and terminals sets.
+* Rules can have one terminal, two non-terminals, or, if the left side is the initial non-terminal, nothing on the right side.
+* The initial symbol of the grammar must be present in the set of non-terminals.
+* There should be no duplicates among the rules.
+
+### Output Constraints
+#### Returned Indices
+The trace function returns a vector of indices
+representing the derivation of the input word.
+These indices correspond to the rules applied
+during the derivation process.
+
+#### Empty Result
+If the input word does not belong to the language
+represented by the grammar, the function returns
+an empty vector.
+
+### Special Cases
+#### Empty Word
+When the input word is empty, the trace function checks if there exists a rule with the initial symbol generating an empty word. If found, the corresponding rule index is returned.
+
+#### Single-Symbol Words
+For words consisting of a single symbol, the trace function directly searches for rules matching the symbol, considering both non-terminals and terminals.
+
+#### Invalid Input
+The program handles cases where the input grammar does not adhere to the specified constraints. It assumes a valid grammar structure as described in the task.
+
+
+### Header Files
+
+The program includes the following standard C++ header files:
+
+```cpp
+#include <algorithm>
+#include <cassert>
+#include <cctype>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <deque>
+#include <functional>
+#include <iomanip>
+#include <iostream>
+#include <list>
+#include <map>
+#include <memory>
+#include <numeric>
+#include <optional>
+#include <queue>
+#include <set>
+#include <sstream>
+#include <stack>
+#include <vector>
+```
+
+### Type Aliases
+The program defines the following type aliases:
+```cpp
+using Symbol = char;
+using Word = std::vector<Symbol>;
+```
+
+### Implementation Details
+#### Grammar Structure
+The Grammar structure represents the grammar used in language analysis. It includes sets of non-terminals and terminals, along with a vector of rules, each consisting of a non-terminal and a vector of symbols. The initial symbol of the grammar is also specified.
+```cpp
+struct Grammar {
+std::set<Symbol> m_Nonterminals;
+std::set<Symbol> m_Terminals;
+std::vector<std::pair<Symbol, std::vector<Symbol>>> m_Rules;
+Symbol m_InitialSymbol;
+};
+```
+
+#### Trace Function
+The trace function is the main entry point for the program. It takes a grammar and a word as input and returns a vector of indices representing the derivation of the word according to the grammar rules.
+```cpp
+std::vector<size_t> trace(const Grammar& grammar, const Word& word);
+```
+
+#### Decoding Logic
+The decoding logic is encapsulated in the 
+Decoder structure. 
+It includes methods for decoding 
+substrings
+and tracing the derivation of words in the 
+grammar. The trace function uses an instance 
+of Decoder to perform the language analysis.
+
+```cpp
+struct Decoder {
+struct Element {
+Element();
+set<Symbol> symbols;
+set<size_t> rules;
+};
+
+    using iterator = std::map<std::string, Element>::iterator;
+    Decoder(const Grammar *g);
+    auto &operator[](const std::string &key);
+    std::pair<iterator, bool> emplace(const std::string &word, const Element &element);
+    void cartesian(const Decoder::Element &A, const Decoder::Element &B, Element &result) const;
+    Element decodeSubstr(const std::string &word);
+    void calculateCases(const std::string &word);
+    vector<size_t> calculateTrace(const std::string &word, const size_t &symbol, const vector<size_t> &result);
+    void decodeSymbols();
+
+    const Grammar *grammar;
+    std::map<std::string, Element> substr_decoder;
+    std::map<Symbol, set<size_t>> symbol_decoder;
+};
+```
+#### Creating new element by decoding the Cartesian Product of two decoder elements
+The cartesian decoding method in the Decoder 
+structure calculates the Cartesian product of two
+sets of symbols, which is crucial for efficient 
+language analysis. It utilizes the grammar rules 
+to determine valid combinations.
+
+#### Trace Calculation
+The calculateTrace method in the Decoder 
+structure recursively traces the derivation 
+of a word based on grammar rules. 
+It considers possible rules and their 
+combinations to identify valid derivations.
+
+
