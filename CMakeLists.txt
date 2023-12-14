@@ -7,3 +7,4 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR})
 
 
 add_executable(determination prog01/determination.cpp)
+add_executable(ancient_languages prog02/ancient_languages.cpp)
