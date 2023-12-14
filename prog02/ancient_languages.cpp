@@ -157,3 +157,48 @@ vector<size_t> Decoder::calculateTrace(const string& word, const size_t& symbol,
         for (size_t len = 1; len < word.size(); ++len) {
             // part1
 
+            auto part1 = calculateTrace(word.substr(0, len), rule[0], result);
+            if (part1.empty())
+                continue;
+
+            // part2
+            auto part2 = calculateTrace(word.substr(len), rule[1], part1);
+            if (part2.empty())
+                continue;
+
+            return part2;
+        }
+    }
+    return {};
+}
+
+// Main function to trace a word in the grammar
+std::vector<size_t> trace(const Grammar& grammar, const Word& word) {
+    std::string word_str(word.begin(), word.end());
+    vector<size_t> res;
+
+    if (word_str.empty()) {
+        // Find the pair {S, {}} in m_Rules
+        auto it = std::find_if(grammar.m_Rules.begin(), grammar.m_Rules.end(),
+                               [&grammar](const auto& rule)
+                               { return rule.first == grammar.m_InitialSymbol && rule.second.empty(); });
+        // Check if the iterator was found
+        if (it != grammar.m_Rules.end())
+            res.push_back(std::distance(grammar.m_Rules.begin(), it));
+    } else {
+        Decoder decoder(&grammar);
+        decoder.calculateCases(word_str);
+
+        decoder.decodeSymbols();
+
+        res = decoder.calculateTrace(word_str, grammar.m_InitialSymbol, {});
+    }
+
+    return res;
+}
+
+#ifndef __PROGTEST__
+int main() {
+    // Test cases
+}
+#endif
